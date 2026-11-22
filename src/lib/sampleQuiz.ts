@@ -1,0 +1,93 @@
+import { QuizPackage } from '@/types/quiz';
+
+export const SAMPLE_ACADEMIC_QUIZ: QuizPackage = {
+  metadata: {
+    id: 'quiz_sample_cardiology_101',
+    title: 'Clinical Diagnostics & Cellular Physiology',
+    topicSummary: 'A 5-question comprehensive sample test covering cellular transport, cardiology, and pharmacology.',
+    createdAt: new Date().toISOString(),
+    questionCount: 5,
+    choiceCount: 4,
+    defaultMode: 'practice',
+    timerMinutes: 10,
+    topics: ['Cardiovascular', 'Cellular Transport', 'Pharmacology'],
+  },
+  questions: [
+    {
+      id: 'q_sample_1',
+      scenario: 'A 58-year-old male presents to the emergency department with exertional chest pain and shortness of breath. An electrocardiogram (ECG) reveals ST-segment elevation in leads V1 through V4.',
+      question: 'Which coronary artery is most likely occluded in this patient?',
+      choices: [
+        { key: 'A', text: 'Left anterior descending (LAD) artery' },
+        { key: 'B', text: 'Right coronary artery (RCA)' },
+        { key: 'C', text: 'Left circumflex (LCx) artery' },
+        { key: 'D', text: 'Left main coronary artery' },
+      ],
+      correctKey: 'A',
+      rationale: 'ST-segment elevation in leads V1-V4 indicates an anteroseptal myocardial infarction, which is classically caused by acute occlusion of the Left Anterior Descending (LAD) artery ("the widowmaker"). RCA occlusions present with inferior changes (II, III, aVF), while LCx occlusions present with lateral changes (I, aVL, V5, V6).',
+      topic: 'Cardiovascular',
+      difficulty: 'medium',
+    },
+    {
+      id: 'q_sample_2',
+      scenario: 'A laboratory study investigates active solute movement across epithelial membranes under hypoxic conditions.',
+      question: 'Which of the following processes directly requires the hydrolysis of ATP to transport ions against their electrochemical gradient?',
+      choices: [
+        { key: 'A', text: 'Sodium-potassium pump (Na+/K+-ATPase)' },
+        { key: 'B', text: 'Sodium-glucose linked transporter (SGLT1)' },
+        { key: 'C', text: 'Facilitated diffusion of glucose via GLUT4' },
+        { key: 'D', text: 'Aquaporin water channel conductance' },
+      ],
+      correctKey: 'A',
+      rationale: 'Primary active transport directly utilizes ATP hydrolysis. The Na+/K+-ATPase hydrolyzes 1 ATP molecule to export 3 Na+ ions and import 2 K+ ions against their electrochemical gradients. SGLT1 uses secondary active transport (sodium gradient), and GLUT4 operates by facilitated diffusion.',
+      topic: 'Cellular Transport',
+      difficulty: 'easy',
+    },
+    {
+      id: 'q_sample_3',
+      scenario: 'A 65-year-old patient with congestive heart failure and atrial fibrillation is initiated on Digoxin therapy.',
+      question: 'What is the primary mechanism by which Digoxin produces a positive inotropic effect in cardiac myocytes?',
+      choices: [
+        { key: 'A', text: 'Inhibition of the sarcolemmal Na+/K+-ATPase leading to increased intracellular calcium' },
+        { key: 'B', text: 'Direct stimulation of beta-1 adrenergic receptors in the myocardium' },
+        { key: 'C', text: 'Phosphodiesterase-3 inhibition causing elevated cyclic AMP levels' },
+        { key: 'D', text: 'Activation of sarcoplasmic reticulum calcium release channels' },
+      ],
+      correctKey: 'A',
+      rationale: 'Digoxin inhibits the Na+/K+-ATPase, which increases intracellular sodium. This reduces the concentration gradient driving the Na+/Ca2+ exchanger (NCX), decreasing calcium efflux and consequently raising cytosolic calcium concentration, thereby enhancing myocardial contractility.',
+      topic: 'Pharmacology',
+      difficulty: 'hard',
+    },
+    {
+      id: 'q_sample_4',
+      scenario: 'During heavy aerobic exercise, the oxygen-hemoglobin dissociation curve undergoes a rightward shift.',
+      question: 'Which physiological change is directly responsible for this rightward shift (Bohr effect)?',
+      choices: [
+        { key: 'A', text: 'Increased hydrogen ion concentration (decreased pH) and increased pCO2' },
+        { key: 'B', text: 'Decreased temperature in working skeletal muscles' },
+        { key: 'C', text: 'Decreased concentration of 2,3-bisphosphoglycerate (2,3-BPG)' },
+        { key: 'D', text: 'Elevated blood arterial pH (alkalosis)' },
+      ],
+      correctKey: 'A',
+      rationale: 'A rightward shift of the oxygen dissociation curve facilitates oxygen unloading at peripheral tissues. It is caused by increased H+ (acidosis/lower pH), increased pCO2, increased temperature, and increased 2,3-BPG—all markers of active metabolic work.',
+      topic: 'Cellular Transport',
+      difficulty: 'medium',
+    },
+    {
+      id: 'q_sample_5',
+      scenario: 'A patient is diagnosed with refractory hypertension and hypokalemia. Imaging confirms a benign aldosterone-producing adrenal adenoma (Conn syndrome).',
+      question: 'What effect does excess aldosterone have on renal tubular electrolyte handling in the principal cells of the collecting duct?',
+      choices: [
+        { key: 'A', text: 'Stimulates Na+ reabsorption and increases K+ and H+ excretion' },
+        { key: 'B', text: 'Inhibits ENaC channels causing natriuresis and hyperkalemia' },
+        { key: 'C', text: 'Increases phosphate reabsorption and decreases calcium excretion' },
+        { key: 'D', text: 'Blocks the mineralocorticoid receptor to promote water loss' },
+      ],
+      correctKey: 'A',
+      rationale: 'Aldosterone upregulates epithelial sodium channels (ENaC) and apical ROMK channels in cortical collecting duct principal cells, increasing sodium reabsorption in exchange for urinary potassium and hydrogen ion excretion.',
+      topic: 'Cardiovascular',
+      difficulty: 'medium',
+    },
+  ],
+};
+
