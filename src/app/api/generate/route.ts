@@ -72,16 +72,27 @@ export async function POST(req: NextRequest) {
     const allowedKeys = choiceCount === 5 ? ['A', 'B', 'C', 'D', 'E'] : ['A', 'B', 'C', 'D'];
 
     const promptText = `
-You are an academic exam author.
-Create an objective, rigorous multiple-choice quiz grounded in the provided source material and focus instructions.
+You are an expert psychometrician and university examination author.
+Create an objective, rigorous multiple-choice quiz strictly grounded in the provided source material and focus instructions.
 
-REQUIREMENTS:
-1. Generate exactly ${requestedCount} multiple choice questions.
-2. Each question MUST have exactly ${choiceCount} choices labeled with keys: ${allowedKeys.join(', ')}.
-3. Do NOT include letter prefixes like "A)", "B.", or "1." inside the "text" field of each choice. The text field must contain purely the option text.
+STRICT PSYCHOMETRIC RULES (NON-NEGOTIABLE):
+1. OPTION LENGTH & DETAIL PARITY (CRITICAL ANTI-GIVEAWAY RULE):
+   - All choices (A, B, C, D, E) for any single question MUST be of approximately EQUAL LENGTH, word count, and level of detail.
+   - NEVER make the correct answer significantly longer, more elaborate, or more specifically qualified than the distractors ("length cue bias").
+   - If the correct answer is 12 words, all distractors must also be roughly 10-14 words with identical grammatical syntax.
+2. DISTRACTOR QUALITY:
+   - Distractors must be authentic, plausible, and represent common academic misconceptions or closely related technical concepts.
+   - NEVER write lazy, obviously false, or joke options.
+   - NEVER use "All of the above", "None of the above", or "Both A and C".
+   - Avoid giveaway absolutes ("always", "never", "in all cases") in distractors if the correct choice uses hedged language ("usually", "predominantly").
+3. FORMATTING:
+   - Generate exactly ${requestedCount} multiple choice questions.
+   - Each question MUST have exactly ${choiceCount} choices labeled with keys: ${allowedKeys.join(', ')}.
+   - Under NO circumstances include letter prefixes like "A)", "B.", or "1." inside the choice "text" string. The "text" field must contain purely the option statement.
+   - Distribute correct keys (A, B, C, D${choiceCount === 5 ? ', E' : ''}) randomly and evenly across questions.
 4. Question Style: "${questionStyle}". If scenario-based, provide an authentic problem vignette. If analytical, test discrimination between plausible alternatives.
-5. Difficulty: "${difficulty}". Distractors must be plausible and non-trivial.
-6. Topic: Assign a concise topic tag (2-4 words) to each question to track performance.
+5. Difficulty: "${difficulty}".
+6. Topic: Assign a concise subtopic tag (2-4 words) to each question to track performance.
 7. Rationale: Provide a comprehensive rationale explaining why the correct choice is right and why key distractors are incorrect.
 8. Grounding: Rely strictly on facts from the provided materials or topic.
 
@@ -132,7 +143,7 @@ ${compiledTextContext ? `Source Content:\n${compiledTextContext.slice(0, 80000)}
                     },
                     text: {
                       type: Type.STRING,
-                      description: 'The option text without any letter prefix',
+                      description: 'The option statement without letter prefixes. MUST have similar length, detail, and structure as the other options in this question.',
                     },
                   },
                   required: ['key', 'text'],

@@ -247,11 +247,10 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleFileDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                isDragging
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${isDragging
                   ? 'border-[#1E3A8A] bg-[#EFF6FF]'
                   : 'border-[#CBD5E1] hover:border-[#94A3B8] bg-[#F8FAFC]'
-              }`}
+                }`}
             >
               <input
                 type="file"
@@ -276,9 +275,8 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                 <div className="text-xs font-semibold text-[#475569] flex justify-between">
                   <span>Attached Files ({uploadedFiles.length}/10)</span>
                   <span
-                    className={`font-mono text-[11px] ${
-                      isOverSize ? 'text-[#EF4444] font-bold' : 'text-[#64748B]'
-                    }`}
+                    className={`font-mono text-[11px] ${isOverSize ? 'text-[#EF4444] font-bold' : 'text-[#64748B]'
+                      }`}
                   >
                     {(totalBatchBytes / (1024 * 1024)).toFixed(2)} MB / 4.40 MB
                   </span>
@@ -371,11 +369,10 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                       key={num}
                       type="button"
                       onClick={() => setQuestionCount(num)}
-                      className={`py-1.5 text-xs font-mono font-bold rounded-md border text-center transition-colors ${
-                        questionCount === num
+                      className={`py-1.5 text-xs font-mono font-bold rounded-md border text-center transition-colors ${questionCount === num
                           ? 'bg-[#1E3A8A] text-white border-[#1E3A8A]'
                           : 'bg-[#F8FAFC] text-[#475569] border-[#CBD5E1] hover:bg-[#E2E8F0]'
-                      }`}
+                        }`}
                     >
                       {num}
                     </button>
@@ -392,22 +389,20 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setChoiceCount(4)}
-                    className={`py-2 px-3 text-xs rounded-md border text-center transition-colors ${
-                      choiceCount === 4
+                    className={`py-2 px-3 text-xs rounded-md border text-center transition-colors ${choiceCount === 4
                         ? 'bg-[#EFF6FF] text-[#1E3A8A] border-[#1E3A8A] font-semibold'
                         : 'bg-[#FFFFFF] text-[#475569] border-[#CBD5E1] hover:bg-[#F8FAFC]'
-                    }`}
+                      }`}
                   >
                     4 Choices (A–D)
                   </button>
                   <button
                     type="button"
                     onClick={() => setChoiceCount(5)}
-                    className={`py-2 px-3 text-xs rounded-md border text-center transition-colors ${
-                      choiceCount === 5
+                    className={`py-2 px-3 text-xs rounded-md border text-center transition-colors ${choiceCount === 5
                         ? 'bg-[#EFF6FF] text-[#1E3A8A] border-[#1E3A8A] font-semibold'
                         : 'bg-[#FFFFFF] text-[#475569] border-[#CBD5E1] hover:bg-[#F8FAFC]'
-                    }`}
+                      }`}
                   >
                     5 Choices (A–E)
                   </button>
@@ -447,11 +442,10 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                       key={d.id}
                       type="button"
                       onClick={() => setDifficulty(d.id as DifficultyOption)}
-                      className={`py-1.5 text-xs font-medium rounded-md border text-center transition-colors ${
-                        difficulty === d.id
+                      className={`py-1.5 text-xs font-medium rounded-md border text-center transition-colors ${difficulty === d.id
                           ? 'bg-[#1E3A8A] text-white border-[#1E3A8A] font-semibold'
                           : 'bg-[#FFFFFF] text-[#475569] border-[#CBD5E1] hover:bg-[#F8FAFC]'
-                      }`}
+                        }`}
                     >
                       {d.label}
                     </button>
@@ -468,11 +462,10 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setQuizMode('practice')}
-                    className={`py-2 px-3 text-left text-xs rounded-md border transition-colors ${
-                      quizMode === 'practice'
+                    className={`py-2 px-3 text-left text-xs rounded-md border transition-colors ${quizMode === 'practice'
                         ? 'bg-[#EFF6FF] border-[#1E3A8A] text-[#1E3A8A] font-semibold'
                         : 'bg-[#FFFFFF] border-[#CBD5E1] text-[#475569] hover:bg-[#F8FAFC]'
-                    }`}
+                      }`}
                   >
                     <div>Practice Mode</div>
                     <div className="text-[10px] text-[#64748B] font-normal">Immediate answers</div>
@@ -480,11 +473,10 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setQuizMode('exam')}
-                    className={`py-2 px-3 text-left text-xs rounded-md border transition-colors ${
-                      quizMode === 'exam'
+                    className={`py-2 px-3 text-left text-xs rounded-md border transition-colors ${quizMode === 'exam'
                         ? 'bg-[#EFF6FF] border-[#1E3A8A] text-[#1E3A8A] font-semibold'
                         : 'bg-[#FFFFFF] border-[#CBD5E1] text-[#475569] hover:bg-[#F8FAFC]'
-                    }`}
+                      }`}
                   >
                     <div>Exam Mode</div>
                     <div className="text-[10px] text-[#64748B] font-normal">Hidden until finish</div>
@@ -509,11 +501,10 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                       key={idx}
                       type="button"
                       onClick={() => setTimerMinutes(t.val)}
-                      className={`py-1.5 text-xs font-mono font-medium rounded-md border text-center transition-colors ${
-                        timerMinutes === t.val
+                      className={`py-1.5 text-xs font-mono font-medium rounded-md border text-center transition-colors ${timerMinutes === t.val
                           ? 'bg-[#1E3A8A] text-white border-[#1E3A8A]'
                           : 'bg-[#FFFFFF] text-[#475569] border-[#CBD5E1] hover:bg-[#F8FAFC]'
-                      }`}
+                        }`}
                     >
                       {t.label}
                     </button>
@@ -528,11 +519,10 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                 type="button"
                 onClick={handleGenerate}
                 disabled={isLoading}
-                className={`w-full py-2.5 px-4 rounded-md font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 text-white transition-colors ${
-                  isLoading
+                className={`w-full py-2.5 px-4 rounded-md font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 text-white transition-colors ${isLoading
                     ? 'bg-[#64748B] cursor-wait'
                     : 'bg-[#1E3A8A] hover:bg-[#172554] active:bg-[#0F172A]'
-                }`}
+                  }`}
               >
                 {isLoading ? (
                   <>
