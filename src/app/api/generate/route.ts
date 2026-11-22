@@ -111,15 +111,24 @@ ${compiledTextContext ? `Source Content:\n${compiledTextContext.slice(0, 90000)}
 
     let rawParsed: any = null;
 
-    // --- Provider Execution: Groq (Primary if key exists) ---
+    // --- Provider Execution: Groq (with auto-fallback across accessible models) ---
     if (groqKey) {
       const groq = new Groq({ apiKey: groqKey });
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an academic exam generator. Return ONLY a valid JSON object matching this schema:
+      const candidateModels = [
+        'llama-3.1-8b-instant',
+        'llama-3.3-70b-versatile',
+        'llama3-8b-8192',
+        'mixtral-8x7b-32768',
+      ];
+
+      for (const m of candidateModels) {
+        try {
+          const completion = await groq.chat.completions.create({
+            model: m,
+            messages: [
+              {
+                role: 'system',
+                content: `You are an academic exam generator. Return ONLY a valid JSON object matching this schema:
 {
   "title": "string",
   "topicSummary": "string",
@@ -139,87 +148,99 @@ ${compiledTextContext ? `Source Content:\n${compiledTextContext.slice(0, 90000)}
     }
   ]
 }`,
-          },
-          {
-            role: 'user',
-            content: promptText,
-          },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.2,
-      });
-
-      const content = completion.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('Groq returned empty output.');
-      }
-      rawParsed = JSON.parse(content);
-    } else if (geminiKey) {
-      // --- Provider Execution: Gemini ---
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const modelName = selectedModel || 'gemini-3.5-flash-lite';
-
-      const quizResponseSchema = {
-        type: Type.OBJECT,
-        properties: {
-          title: { type: Type.STRING },
-          topicSummary: { type: Type.STRING },
-          topicsList: { type: Type.ARRAY, items: { type: Type.STRING } },
-          questions: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                scenario: { type: Type.STRING },
-                question: { type: Type.STRING },
-                choices: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      key: { type: Type.STRING },
-                      text: { type: Type.STRING },
-                    },
-                    required: ['key', 'text'],
-                  },
-                },
-                correctKey: { type: Type.STRING },
-                rationale: { type: Type.STRING },
-                topic: { type: Type.STRING },
-                difficulty: { type: Type.STRING },
               },
-              required: ['question', 'choices', 'correctKey', 'rationale', 'topic'],
+              {
+                role: 'user',
+                content: promptText,
+              },
+            ],
+            response_format: { type: 'json_object' },
+            temperature: 0.2,
+          });
+
+          const content = completion.choices[0]?.message?.content;
+          if (content) {
+            rawParsed = JSON.parse(content);
+            break; // Success!
+          }
+        } catch (err: any) {
+          console.warn(`Groq model ${m} unavailable, trying next model:`, err?.message);
+        }
+      }
+    }
+
+    // --- Provider Execution: Gemini (Fallback if Groq not set or failed) ---
+    if (!rawParsed && geminiKey) {
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      const geminiCandidates = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'];
+
+      for (const modelName of geminiCandidates) {
+        try {
+          const quizResponseSchema = {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              topicSummary: { type: Type.STRING },
+              topicsList: { type: Type.ARRAY, items: { type: Type.STRING } },
+              questions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    scenario: { type: Type.STRING },
+                    question: { type: Type.STRING },
+                    choices: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          key: { type: Type.STRING },
+                          text: { type: Type.STRING },
+                        },
+                        required: ['key', 'text'],
+                      },
+                    },
+                    correctKey: { type: Type.STRING },
+                    rationale: { type: Type.STRING },
+                    topic: { type: Type.STRING },
+                    difficulty: { type: Type.STRING },
+                  },
+                  required: ['question', 'choices', 'correctKey', 'rationale', 'topic'],
+                },
+              },
             },
-          },
-        },
-        required: ['title', 'topicSummary', 'topicsList', 'questions'],
-      };
+            required: ['title', 'topicSummary', 'topicsList', 'questions'],
+          };
 
-      const contents: any[] = [];
-      if (imageParts.length > 0) {
-        contents.push(...imageParts);
+          const contents: any[] = [];
+          if (imageParts.length > 0) {
+            contents.push(...imageParts);
+          }
+          contents.push({ text: promptText });
+
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents,
+            config: {
+              responseMimeType: 'application/json',
+              responseSchema: quizResponseSchema,
+              temperature: 0.2,
+            },
+          });
+
+          const responseText = response.text;
+          if (responseText) {
+            rawParsed = JSON.parse(responseText);
+            break;
+          }
+        } catch (geminiErr: any) {
+          console.warn(`Gemini model ${modelName} failed:`, geminiErr?.message);
+        }
       }
-      contents.push({ text: promptText });
-
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: quizResponseSchema,
-          temperature: 0.2,
-        },
-      });
-
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error('Empty response received from generation model.');
-      }
-      rawParsed = JSON.parse(responseText);
     }
 
     if (!rawParsed || !rawParsed.questions) {
-      throw new Error('Could not parse generated quiz questions.');
+      throw new Error('Could not parse generated quiz questions. Please try with fewer questions or shorter text.');
     }
 
     const quizId = 'quiz_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
