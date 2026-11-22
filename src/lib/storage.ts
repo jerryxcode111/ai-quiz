@@ -79,19 +79,19 @@ export function clearActiveAttempt(quizId: string): void {
 
 export function getApiSettings(): UserApiSettings {
   if (typeof window === 'undefined') {
-    return { apiKey: '', preferredModel: 'llama-3.3-70b-versatile', hasCustomKey: false };
+    return { apiKey: '', preferredModel: 'openai/gpt-oss-120b', hasCustomKey: false };
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.API_SETTINGS);
-    if (!raw) return { apiKey: '', preferredModel: 'llama-3.3-70b-versatile', hasCustomKey: false };
+    if (!raw) return { apiKey: '', preferredModel: 'openai/gpt-oss-120b', hasCustomKey: false };
     const parsed = JSON.parse(raw);
     return {
       apiKey: parsed.apiKey || '',
-      preferredModel: parsed.preferredModel || 'llama-3.3-70b-versatile',
+      preferredModel: parsed.preferredModel || 'openai/gpt-oss-120b',
       hasCustomKey: Boolean(parsed.apiKey && parsed.apiKey.trim().length > 0),
     };
   } catch (err) {
-    return { apiKey: '', preferredModel: 'llama-3.3-70b-versatile', hasCustomKey: false };
+    return { apiKey: '', preferredModel: 'openai/gpt-oss-120b', hasCustomKey: false };
   }
 }
 

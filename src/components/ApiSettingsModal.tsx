@@ -109,9 +109,9 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
               onChange={(e) => setModel(e.target.value)}
               className="w-full text-xs font-mono px-3 py-2 bg-[#FFFFFF] border border-[#CBD5E1] rounded-md text-[#0F172A] focus:outline-hidden focus:border-[#1E3A8A]"
             >
-              <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Groq: Ultra-fast, 0 timeouts)</option>
+              <option value="openai/gpt-oss-120b">openai/gpt-oss-120b (Groq: Flagship, High Quality & Speed)</option>
+              <option value="openai/gpt-oss-20b">openai/gpt-oss-20b (Groq: Ultra-fast)</option>
               <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Gemini)</option>
-              <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini)</option>
             </select>
           </div>
         </div>

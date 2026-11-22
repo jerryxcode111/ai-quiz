@@ -111,14 +111,14 @@ ${compiledTextContext ? `Source Content:\n${compiledTextContext.slice(0, 90000)}
 
     let rawParsed: any = null;
 
-    // --- Provider Execution: Groq (with auto-fallback across accessible models) ---
+    // --- Provider Execution: Groq (with auto-fallback across active models) ---
     if (groqKey) {
       const groq = new Groq({ apiKey: groqKey });
       const candidateModels = [
+        'openai/gpt-oss-120b',
+        'openai/gpt-oss-20b',
         'llama-3.1-8b-instant',
         'llama-3.3-70b-versatile',
-        'llama3-8b-8192',
-        'mixtral-8x7b-32768',
       ];
 
       for (const m of candidateModels) {
