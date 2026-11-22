@@ -76,9 +76,9 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
   const addFiles = (newFiles: File[]) => {
     setErrorMessage(null);
     const combined = [...uploadedFiles, ...newFiles];
-    if (combined.length > 5) {
-      setErrorMessage('Maximum 5 files allowed per upload.');
-      setUploadedFiles(combined.slice(0, 5));
+    if (combined.length > 10) {
+      setErrorMessage('Maximum 10 files allowed per upload.');
+      setUploadedFiles(combined.slice(0, 10));
       return;
     }
     setUploadedFiles(combined);
@@ -235,7 +235,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                   Source Content
                 </h2>
               </div>
-              <span className="font-mono text-xs text-[#64748B]">Max 5 files (4.4 MB)</span>
+              <span className="font-mono text-xs text-[#64748B]">Max 10 files (4.4 MB)</span>
             </div>
 
             {/* Drag & Drop Upload Zone */}
@@ -258,7 +258,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                 ref={fileInputRef}
                 onChange={handleFileInputChange}
                 multiple
-                accept=".pdf,.docx,.txt,.md,.json,.csv,.png,.jpg,.jpeg,.webp"
+                accept=".pdf,.pptx,.ppt,.docx,.txt,.md,.json,.csv,.png,.jpg,.jpeg,.webp"
                 className="hidden"
               />
               <Upload className="w-7 h-7 mx-auto text-[#64748B] mb-2" />
@@ -266,7 +266,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
                 Drag and drop files, or <span className="text-[#1E3A8A] underline">browse</span>
               </p>
               <p className="text-[11px] text-[#64748B] mt-1 font-mono">
-                PDF, DOCX, TXT, Markdown, CSV, or Images
+                PDF, PPTX / PPT, DOCX, TXT, Markdown, CSV, or Images
               </p>
             </div>
 
@@ -274,7 +274,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({
             {uploadedFiles.length > 0 && (
               <div className="mt-4 space-y-2">
                 <div className="text-xs font-semibold text-[#475569] flex justify-between">
-                  <span>Attached Files ({uploadedFiles.length}/5)</span>
+                  <span>Attached Files ({uploadedFiles.length}/10)</span>
                   <span
                     className={`font-mono text-[11px] ${
                       isOverSize ? 'text-[#EF4444] font-bold' : 'text-[#64748B]'
