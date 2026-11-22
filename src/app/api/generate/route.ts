@@ -6,6 +6,190 @@ import { QuizPackage, QuizQuestion, QuizChoice, QuestionChoiceKey } from '@/type
 
 export const maxDuration = 60;
 
+// --- Helpers ---
+
+/** Build the system prompt for JSON quiz generation */
+function buildSystemPrompt(): string {
+  return `You are an academic exam generator. Return ONLY a valid JSON object matching this schema:
+{
+  "title": "string",
+  "topicSummary": "string",
+  "topicsList": ["string"],
+  "questions": [
+    {
+      "scenario": "string (optional case study / vignette, or empty string)",
+      "question": "string",
+      "choices": [
+        {"key": "A", "text": "string"},
+        {"key": "B", "text": "string"}
+      ],
+      "correctKey": "A",
+      "rationale": "string",
+      "topic": "string",
+      "difficulty": "easy | medium | hard"
+    }
+  ]
+}
+Return ONLY the JSON. No markdown fences, no commentary.`;
+}
+
+/** Build the user prompt for a batch of questions */
+function buildUserPrompt(opts: {
+  batchCount: number;
+  totalCount: number;
+  batchIndex: number;
+  choiceCount: number;
+  allowedKeys: string[];
+  difficulty: string;
+  questionStyle: string;
+  topicPrompt: string;
+  compiledTextContext: string;
+  maxContentChars: number;
+}): string {
+  const batchLabel =
+    opts.totalCount > opts.batchCount
+      ? `Generate batch ${opts.batchIndex + 1}: exactly ${opts.batchCount} questions (questions ${opts.batchIndex * opts.batchCount + 1}-${(opts.batchIndex + 1) * opts.batchCount} of ${opts.totalCount} total).`
+      : `Generate exactly ${opts.batchCount} multiple choice questions.`;
+
+  return `
+You are an expert psychometrician and university examination author.
+Create an objective, rigorous multiple-choice quiz strictly grounded in the provided source material and focus instructions.
+
+STRICT PSYCHOMETRIC RULES (NON-NEGOTIABLE):
+1. OPTION LENGTH & DETAIL PARITY (CRITICAL ANTI-GIVEAWAY RULE):
+   - All choices for any single question MUST be of approximately EQUAL LENGTH, word count, and level of detail.
+   - NEVER make the correct answer significantly longer, more elaborate, or more specifically qualified than the distractors ("length cue bias").
+   - If the correct answer is 12 words, all distractors must also be roughly 10-14 words with identical grammatical syntax.
+   - DO NOT pad the correct answer with extra qualifiers, specifics, or technical terms that the distractors lack.
+2. DISTRACTOR QUALITY:
+   - Distractors must be authentic, plausible, and represent common academic misconceptions or closely related technical concepts.
+   - NEVER write lazy, obviously false, or joke options.
+   - NEVER use "All of the above", "None of the above", or "Both A and C".
+   - Avoid giveaway absolutes ("always", "never", "in all cases") in distractors if the correct choice uses hedged language.
+   - DO NOT make one option stand out by being more detailed, more precise, or more "textbook-like" than the others.
+3. FORMATTING:
+   - ${batchLabel}
+   - Each question MUST have exactly ${opts.choiceCount} choices labeled with keys: ${opts.allowedKeys.join(', ')}.
+   - Under NO circumstances include letter prefixes like "A)", "B.", or "1." inside the choice "text" string.
+   - Distribute correct keys (${opts.allowedKeys.join(', ')}) randomly and roughly evenly across questions.
+4. Question Style: "${opts.questionStyle}". If scenario-based, provide an authentic problem vignette.
+5. Difficulty: "${opts.difficulty}".
+6. Topic: Assign a concise subtopic tag (2-4 words) to each question.
+7. Rationale: Provide a comprehensive rationale explaining why the correct choice is right and why key distractors are incorrect.
+8. Grounding: Rely strictly on facts from the provided materials or topic.
+9. ANTI-GIVEAWAY VERIFICATION (MUST DO BEFORE FINALIZING):
+   - For each question, verify that if you hid the correctKey, a test-taking strategist could NOT identify the answer just by picking the longest or most detailed option.
+   - If any option is noticeably longer/more specific than the others, REWRITE ALL options to be equal length.
+
+Focus Topic: ${opts.topicPrompt || 'Core concepts from provided materials'}
+
+${opts.compiledTextContext ? `Source Content:\n${opts.compiledTextContext.slice(0, opts.maxContentChars)}` : 'Create questions based directly on the focus topic.'}
+`;
+}
+
+/** Try to salvage partial JSON when the response gets truncated */
+function salvagePartialJson(raw: string): any | null {
+  // 1. Try direct parse first
+  try {
+    return JSON.parse(raw);
+  } catch {}
+
+  // 2. Strip markdown code fences if present
+  let cleaned = raw.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  // 3. Try to find and close the last complete question object
+  const lastCompleteQ = cleaned.lastIndexOf('"difficulty"');
+  if (lastCompleteQ === -1) return null;
+
+  // Find the closing brace of that question object
+  let braceDepth = 0;
+  let cutoff = -1;
+  for (let i = lastCompleteQ; i < cleaned.length; i++) {
+    if (cleaned[i] === '{') braceDepth++;
+    if (cleaned[i] === '}') {
+      braceDepth--;
+      if (braceDepth <= -1) {
+        cutoff = i + 1;
+        break;
+      }
+    }
+  }
+
+  if (cutoff === -1) {
+    // Try to find the last complete } before truncation
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (lastBrace > 0) cutoff = lastBrace + 1;
+    else return null;
+  }
+
+  // Close the array and object
+  const truncated = cleaned.slice(0, cutoff) + ']}';
+  try {
+    return JSON.parse(truncated);
+  } catch {}
+
+  // 4. More aggressive: find all complete question objects
+  const questionPattern = /\{[^{}]*"question"\s*:\s*"[^"]*"[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
+  const matches = cleaned.match(questionPattern);
+  if (matches && matches.length > 0) {
+    // Try to build a minimal valid object
+    const titleMatch = cleaned.match(/"title"\s*:\s*"([^"]*)"/);
+    const title = titleMatch ? titleMatch[1] : 'Generated Quiz';
+    try {
+      return {
+        title,
+        topicSummary: 'Auto-recovered quiz',
+        topicsList: [],
+        questions: matches.map((m) => JSON.parse(m)),
+      };
+    } catch {}
+  }
+
+  return null;
+}
+
+/** Call Groq for a single batch */
+async function callGroqBatch(
+  groq: Groq,
+  systemPrompt: string,
+  userPrompt: string,
+  candidateModels: string[]
+): Promise<any | null> {
+  for (const m of candidateModels) {
+    try {
+      const completion = await groq.chat.completions.create({
+        model: m,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2,
+        max_tokens: 32768,
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (!content) continue;
+
+      // Try strict parse, then salvage
+      const parsed = salvagePartialJson(content);
+      if (parsed && parsed.questions && parsed.questions.length > 0) {
+        return parsed;
+      }
+    } catch (err: any) {
+      console.warn(`Groq model ${m} failed:`, err?.message);
+      // If it's a rate limit or auth error, throw to let outer handler catch it
+      if (err?.status === 429 || err?.status === 401 || err?.status === 403) {
+        throw err;
+      }
+    }
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const clientProvidedKey = req.headers.get('x-gemini-key');
@@ -79,173 +263,183 @@ export async function POST(req: NextRequest) {
 
     const allowedKeys = choiceCount === 5 ? ['A', 'B', 'C', 'D', 'E'] : ['A', 'B', 'C', 'D'];
 
-    const promptText = `
-You are an expert psychometrician and university examination author.
-Create an objective, rigorous multiple-choice quiz strictly grounded in the provided source material and focus instructions.
+    // Determine batching: split large requests into smaller chunks
+    const BATCH_SIZE = 15; // Safe size that won't exceed output token limits
+    const batches: number[] = [];
+    let remaining = requestedCount;
+    while (remaining > 0) {
+      const batchCount = Math.min(remaining, BATCH_SIZE);
+      batches.push(batchCount);
+      remaining -= batchCount;
+    }
 
-STRICT PSYCHOMETRIC RULES (NON-NEGOTIABLE):
-1. OPTION LENGTH & DETAIL PARITY (CRITICAL ANTI-GIVEAWAY RULE):
-   - All choices (A, B, C, D, E) for any single question MUST be of approximately EQUAL LENGTH, word count, and level of detail.
-   - NEVER make the correct answer significantly longer, more elaborate, or more specifically qualified than the distractors ("length cue bias").
-   - If the correct answer is 12 words, all distractors must also be roughly 10-14 words with identical grammatical syntax.
-2. DISTRACTOR QUALITY:
-   - Distractors must be authentic, plausible, and represent common academic misconceptions or closely related technical concepts.
-   - NEVER write lazy, obviously false, or joke options.
-   - NEVER use "All of the above", "None of the above", or "Both A and C".
-   - Avoid giveaway absolutes ("always", "never", "in all cases") in distractors if the correct choice uses hedged language ("usually", "predominantly").
-3. FORMATTING:
-   - Generate exactly ${requestedCount} multiple choice questions.
-   - Each question MUST have exactly ${choiceCount} choices labeled with keys: ${allowedKeys.join(', ')}.
-   - Under NO circumstances include letter prefixes like "A)", "B.", or "1." inside the choice "text" string. The "text" field must contain purely the option statement.
-   - Distribute correct keys (A, B, C, D${choiceCount === 5 ? ', E' : ''}) randomly and evenly across questions.
-4. Question Style: "${questionStyle}". If scenario-based, provide an authentic problem vignette. If analytical, test discrimination between plausible alternatives.
-5. Difficulty: "${difficulty}".
-6. Topic: Assign a concise subtopic tag (2-4 words) to each question to track performance.
-7. Rationale: Provide a comprehensive rationale explaining why the correct choice is right and why key distractors are incorrect.
-8. Grounding: Rely strictly on facts from the provided materials or topic.
+    let allQuestions: any[] = [];
+    let quizTitle = '';
+    let quizTopicSummary = '';
+    let quizTopicsList: string[] = [];
 
-Focus Topic: ${topicPrompt || 'Core concepts from provided materials'}
+    const systemPrompt = buildSystemPrompt();
 
-${compiledTextContext ? `Source Content:\n${compiledTextContext.slice(0, 90000)}` : 'Create questions based directly on the focus topic.'}
-`;
-
-    let rawParsed: any = null;
-
-    // --- Provider Execution: Groq (with auto-fallback across active models) ---
+    // --- Provider Execution: Groq (primary, with batching & auto-fallback) ---
     if (groqKey) {
       const groq = new Groq({ apiKey: groqKey });
       const candidateModels = [
         'openai/gpt-oss-120b',
         'openai/gpt-oss-20b',
-        'llama-3.1-8b-instant',
-        'llama-3.3-70b-versatile',
       ];
 
-      for (const m of candidateModels) {
-        try {
-          const completion = await groq.chat.completions.create({
-            model: m,
-            messages: [
-              {
-                role: 'system',
-                content: `You are an academic exam generator. Return ONLY a valid JSON object matching this schema:
-{
-  "title": "string",
-  "topicSummary": "string",
-  "topicsList": ["string"],
-  "questions": [
-    {
-      "scenario": "string (optional case study / vignette, or empty)",
-      "question": "string",
-      "choices": [
-        {"key": "A", "text": "string"},
-        {"key": "B", "text": "string"}
-      ],
-      "correctKey": "A",
-      "rationale": "string",
-      "topic": "string",
-      "difficulty": "easy | medium | hard"
-    }
-  ]
-}`,
-              },
-              {
-                role: 'user',
-                content: promptText,
-              },
-            ],
-            response_format: { type: 'json_object' },
-            temperature: 0.2,
-          });
+      // Content limit for Groq: smaller to leave room for output tokens
+      const groqContentLimit = 40000;
 
-          const content = completion.choices[0]?.message?.content;
-          if (content) {
-            rawParsed = JSON.parse(content);
-            break; // Success!
+      let groqSucceeded = true;
+
+      for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+        const batchCount = batches[batchIdx];
+        const userPrompt = buildUserPrompt({
+          batchCount,
+          totalCount: requestedCount,
+          batchIndex: batchIdx,
+          choiceCount,
+          allowedKeys,
+          difficulty,
+          questionStyle,
+          topicPrompt,
+          compiledTextContext,
+          maxContentChars: groqContentLimit,
+        });
+
+        try {
+          const result = await callGroqBatch(groq, systemPrompt, userPrompt, candidateModels);
+          if (result && result.questions && result.questions.length > 0) {
+            allQuestions.push(...result.questions);
+            if (batchIdx === 0) {
+              quizTitle = result.title || '';
+              quizTopicSummary = result.topicSummary || '';
+              quizTopicsList = result.topicsList || [];
+            }
+          } else {
+            groqSucceeded = false;
+            break;
           }
         } catch (err: any) {
-          console.warn(`Groq model ${m} unavailable, trying next model:`, err?.message);
+          groqSucceeded = false;
+          console.warn(`Groq batch ${batchIdx + 1} failed:`, err?.message);
+          break;
         }
+      }
+
+      if (!groqSucceeded) {
+        allQuestions = []; // Reset so Gemini fallback can try
       }
     }
 
     // --- Provider Execution: Gemini (Fallback if Groq not set or failed) ---
-    if (!rawParsed && geminiKey) {
+    if (allQuestions.length === 0 && geminiKey) {
       const ai = new GoogleGenAI({ apiKey: geminiKey });
       const geminiCandidates = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'];
 
-      for (const modelName of geminiCandidates) {
-        try {
-          const quizResponseSchema = {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              topicSummary: { type: Type.STRING },
-              topicsList: { type: Type.ARRAY, items: { type: Type.STRING } },
-              questions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    scenario: { type: Type.STRING },
-                    question: { type: Type.STRING },
-                    choices: {
-                      type: Type.ARRAY,
-                      items: {
-                        type: Type.OBJECT,
-                        properties: {
-                          key: { type: Type.STRING },
-                          text: { type: Type.STRING },
-                        },
-                        required: ['key', 'text'],
-                      },
+      const quizResponseSchema = {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          topicSummary: { type: Type.STRING },
+          topicsList: { type: Type.ARRAY, items: { type: Type.STRING } },
+          questions: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                scenario: { type: Type.STRING },
+                question: { type: Type.STRING },
+                choices: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      key: { type: Type.STRING },
+                      text: { type: Type.STRING },
                     },
-                    correctKey: { type: Type.STRING },
-                    rationale: { type: Type.STRING },
-                    topic: { type: Type.STRING },
-                    difficulty: { type: Type.STRING },
+                    required: ['key', 'text'],
                   },
-                  required: ['question', 'choices', 'correctKey', 'rationale', 'topic'],
                 },
+                correctKey: { type: Type.STRING },
+                rationale: { type: Type.STRING },
+                topic: { type: Type.STRING },
+                difficulty: { type: Type.STRING },
               },
+              required: ['question', 'choices', 'correctKey', 'rationale', 'topic'],
             },
-            required: ['title', 'topicSummary', 'topicsList', 'questions'],
-          };
+          },
+        },
+        required: ['title', 'topicSummary', 'topicsList', 'questions'],
+      };
 
-          const contents: any[] = [];
-          if (imageParts.length > 0) {
-            contents.push(...imageParts);
+      // Gemini handles larger contexts better, so use a higher limit
+      const geminiContentLimit = 80000;
+
+      for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+        const batchCount = batches[batchIdx];
+        const userPrompt = buildUserPrompt({
+          batchCount,
+          totalCount: requestedCount,
+          batchIndex: batchIdx,
+          choiceCount,
+          allowedKeys,
+          difficulty,
+          questionStyle,
+          topicPrompt,
+          compiledTextContext,
+          maxContentChars: geminiContentLimit,
+        });
+
+        let batchDone = false;
+        for (const modelName of geminiCandidates) {
+          try {
+            const contents: any[] = [];
+            if (imageParts.length > 0) {
+              contents.push(...imageParts);
+            }
+            contents.push({ text: userPrompt });
+
+            const response = await ai.models.generateContent({
+              model: modelName,
+              contents,
+              config: {
+                responseMimeType: 'application/json',
+                responseSchema: quizResponseSchema,
+                temperature: 0.2,
+              },
+            });
+
+            const responseText = response.text;
+            if (responseText) {
+              const parsed = salvagePartialJson(responseText);
+              if (parsed && parsed.questions && parsed.questions.length > 0) {
+                allQuestions.push(...parsed.questions);
+                if (batchIdx === 0) {
+                  quizTitle = parsed.title || '';
+                  quizTopicSummary = parsed.topicSummary || '';
+                  quizTopicsList = parsed.topicsList || [];
+                }
+                batchDone = true;
+                break;
+              }
+            }
+          } catch (geminiErr: any) {
+            console.warn(`Gemini model ${modelName} failed:`, geminiErr?.message);
           }
-          contents.push({ text: promptText });
-
-          const response = await ai.models.generateContent({
-            model: modelName,
-            contents,
-            config: {
-              responseMimeType: 'application/json',
-              responseSchema: quizResponseSchema,
-              temperature: 0.2,
-            },
-          });
-
-          const responseText = response.text;
-          if (responseText) {
-            rawParsed = JSON.parse(responseText);
-            break;
-          }
-        } catch (geminiErr: any) {
-          console.warn(`Gemini model ${modelName} failed:`, geminiErr?.message);
         }
+        if (!batchDone) break;
       }
     }
 
-    if (!rawParsed || !rawParsed.questions) {
-      throw new Error('Could not parse generated quiz questions. Please try with fewer questions or shorter text.');
+    if (allQuestions.length === 0) {
+      throw new Error('Could not generate quiz questions. Please try with fewer questions or shorter text.');
     }
 
     const quizId = 'quiz_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
-    const questions: QuizQuestion[] = (rawParsed.questions || []).map((q: any, idx: number) => {
+    const questions: QuizQuestion[] = allQuestions.map((q: any, idx: number) => {
       const choices: QuizChoice[] = (q.choices || []).slice(0, choiceCount).map((c: any, cIdx: number) => {
         const key = (allowedKeys[cIdx] || c.key || 'A') as QuestionChoiceKey;
         let cleanText = String(c.text || '').trim();
@@ -276,8 +470,8 @@ ${compiledTextContext ? `Source Content:\n${compiledTextContext.slice(0, 90000)}
     const quizPackage: QuizPackage = {
       metadata: {
         id: quizId,
-        title: rawParsed.title || (topicPrompt ? `Quiz: ${topicPrompt}` : 'Study Quiz'),
-        topicSummary: rawParsed.topicSummary || `${questions.length} questions generated`,
+        title: quizTitle || (topicPrompt ? `Quiz: ${topicPrompt}` : 'Study Quiz'),
+        topicSummary: quizTopicSummary || `${questions.length} questions generated`,
         createdAt: new Date().toISOString(),
         questionCount: questions.length,
         choiceCount,
