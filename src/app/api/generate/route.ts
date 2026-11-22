@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import Groq from 'groq-sdk';
 import { GoogleGenAI, Type } from '@google/genai';
 import { parseUploadedFile } from '@/lib/fileParser';
 import { QuizPackage, QuizQuestion, QuizChoice, QuestionChoiceKey } from '@/types/quiz';
@@ -8,13 +9,20 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const clientProvidedKey = req.headers.get('x-gemini-key');
-    const selectedModel = req.headers.get('x-gemini-model') || 'gemini-3.5-flash-lite';
-    const apiKey = (clientProvidedKey && clientProvidedKey.trim()) || process.env.GEMINI_API_KEY;
+    const selectedModel = req.headers.get('x-gemini-model');
 
-    if (!apiKey || apiKey.trim().length === 0) {
+    const groqKey =
+      (clientProvidedKey && clientProvidedKey.startsWith('gsk_') ? clientProvidedKey : null) ||
+      process.env.GROQ_API_KEY;
+
+    const geminiKey =
+      (clientProvidedKey && !clientProvidedKey.startsWith('gsk_') ? clientProvidedKey : null) ||
+      process.env.GEMINI_API_KEY;
+
+    if (!groqKey && !geminiKey) {
       return NextResponse.json(
         {
-          error: 'API key is unavailable or not configured. Please provide a Gemini API key to proceed.',
+          error: 'No API key configured. Please set GROQ_API_KEY or GEMINI_API_KEY in Vercel environment variables.',
           apiError: true,
         },
         { status: 401 }
@@ -55,7 +63,7 @@ export async function POST(req: NextRequest) {
             },
           });
         } else if (parsed.textContent) {
-          compiledTextContext += `### File: ${parsed.fileName}\n${parsed.textContent}\n\n`;
+          compiledTextContext += `### File (${parsed.fileName}):\n${parsed.textContent}\n\n`;
         }
       }
     }
@@ -63,7 +71,7 @@ export async function POST(req: NextRequest) {
     if (!compiledTextContext.trim() && imageParts.length === 0 && !topicPrompt.trim()) {
       return NextResponse.json(
         {
-          error: 'Please provide study notes, upload documents/images, or enter a topic prompt.',
+          error: 'Please provide study notes, upload documents/images, or enter a focus topic.',
         },
         { status: 400 }
       );
@@ -98,103 +106,121 @@ STRICT PSYCHOMETRIC RULES (NON-NEGOTIABLE):
 
 Focus Topic: ${topicPrompt || 'Core concepts from provided materials'}
 
-${compiledTextContext ? `Source Content:\n${compiledTextContext.slice(0, 80000)}` : 'Create questions based directly on the focus topic.'}
+${compiledTextContext ? `Source Content:\n${compiledTextContext.slice(0, 90000)}` : 'Create questions based directly on the focus topic.'}
 `;
 
-    const ai = new GoogleGenAI({ apiKey });
+    let rawParsed: any = null;
 
-    const quizResponseSchema = {
-      type: Type.OBJECT,
-      properties: {
-        title: {
-          type: Type.STRING,
-          description: 'Title for this quiz',
-        },
-        topicSummary: {
-          type: Type.STRING,
-          description: '1-sentence summary of the subject matter',
-        },
-        topicsList: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
-          description: 'List of unique subtopics covered',
-        },
-        questions: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              scenario: {
-                type: Type.STRING,
-                description: 'Optional clinical or case vignette',
-              },
-              question: {
-                type: Type.STRING,
-                description: 'The primary question prompt',
-              },
-              choices: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    key: {
-                      type: Type.STRING,
-                      description: 'Letter key: A, B, C, D, or E',
+    // --- Provider Execution: Groq (Primary if key exists) ---
+    if (groqKey) {
+      const groq = new Groq({ apiKey: groqKey });
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an academic exam generator. Return ONLY a valid JSON object matching this schema:
+{
+  "title": "string",
+  "topicSummary": "string",
+  "topicsList": ["string"],
+  "questions": [
+    {
+      "scenario": "string (optional case study / vignette, or empty)",
+      "question": "string",
+      "choices": [
+        {"key": "A", "text": "string"},
+        {"key": "B", "text": "string"}
+      ],
+      "correctKey": "A",
+      "rationale": "string",
+      "topic": "string",
+      "difficulty": "easy | medium | hard"
+    }
+  ]
+}`,
+          },
+          {
+            role: 'user',
+            content: promptText,
+          },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2,
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('Groq returned empty output.');
+      }
+      rawParsed = JSON.parse(content);
+    } else if (geminiKey) {
+      // --- Provider Execution: Gemini ---
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      const modelName = selectedModel || 'gemini-3.5-flash-lite';
+
+      const quizResponseSchema = {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          topicSummary: { type: Type.STRING },
+          topicsList: { type: Type.ARRAY, items: { type: Type.STRING } },
+          questions: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                scenario: { type: Type.STRING },
+                question: { type: Type.STRING },
+                choices: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      key: { type: Type.STRING },
+                      text: { type: Type.STRING },
                     },
-                    text: {
-                      type: Type.STRING,
-                      description: 'The option statement without letter prefixes. MUST have similar length, detail, and structure as the other options in this question.',
-                    },
+                    required: ['key', 'text'],
                   },
-                  required: ['key', 'text'],
                 },
+                correctKey: { type: Type.STRING },
+                rationale: { type: Type.STRING },
+                topic: { type: Type.STRING },
+                difficulty: { type: Type.STRING },
               },
-              correctKey: {
-                type: Type.STRING,
-                description: 'The correct choice key (A, B, C, D, or E)',
-              },
-              rationale: {
-                type: Type.STRING,
-                description: 'Explanation for correct and incorrect options',
-              },
-              topic: {
-                type: Type.STRING,
-                description: 'Specific subtopic for this question',
-              },
-              difficulty: {
-                type: Type.STRING,
-                description: 'easy, medium, or hard',
-              },
+              required: ['question', 'choices', 'correctKey', 'rationale', 'topic'],
             },
-            required: ['question', 'choices', 'correctKey', 'rationale', 'topic'],
           },
         },
-      },
-      required: ['title', 'topicSummary', 'topicsList', 'questions'],
-    };
+        required: ['title', 'topicSummary', 'topicsList', 'questions'],
+      };
 
-    const contents: any[] = [];
-    if (imageParts.length > 0) {
-      contents.push(...imageParts);
+      const contents: any[] = [];
+      if (imageParts.length > 0) {
+        contents.push(...imageParts);
+      }
+      contents.push({ text: promptText });
+
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: quizResponseSchema,
+          temperature: 0.2,
+        },
+      });
+
+      const responseText = response.text;
+      if (!responseText) {
+        throw new Error('Empty response received from generation model.');
+      }
+      rawParsed = JSON.parse(responseText);
     }
-    contents.push({ text: promptText });
 
-    const response = await ai.models.generateContent({
-      model: selectedModel,
-      contents,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: quizResponseSchema,
-        temperature: 0.2,
-      },
-    });
-
-    const responseText = response.text;
-    if (!responseText) {
-      throw new Error('Empty response received from generation model.');
+    if (!rawParsed || !rawParsed.questions) {
+      throw new Error('Could not parse generated quiz questions.');
     }
-
-    const rawParsed = JSON.parse(responseText);
 
     const quizId = 'quiz_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
@@ -247,18 +273,20 @@ ${compiledTextContext ? `Source Content:\n${compiledTextContext.slice(0, 80000)}
     const msg = error.message || '';
     const isQuotaOrAuth =
       msg.includes('quota') ||
+      msg.includes('503') ||
       msg.includes('429') ||
       msg.includes('403') ||
       msg.includes('401') ||
       msg.includes('API_KEY') ||
       msg.includes('UNAUTHENTICATED') ||
       msg.includes('RESOURCE_EXHAUSTED') ||
+      msg.includes('high demand') ||
       msg.includes('credits');
 
     return NextResponse.json(
       {
         error: isQuotaOrAuth
-          ? 'API service limit reached or key is unavailable. Please provide a backup Gemini API key to continue.'
+          ? 'AI service rate limit reached or high demand. Please provide an alternate Groq or Gemini API key to continue.'
           : (msg || 'Failed to generate quiz. Please try again with shorter content or fewer questions.'),
         apiError: isQuotaOrAuth,
       },

@@ -79,19 +79,19 @@ export function clearActiveAttempt(quizId: string): void {
 
 export function getApiSettings(): UserApiSettings {
   if (typeof window === 'undefined') {
-    return { apiKey: '', preferredModel: 'gemini-3.5-flash-lite', hasCustomKey: false };
+    return { apiKey: '', preferredModel: 'llama-3.3-70b-versatile', hasCustomKey: false };
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.API_SETTINGS);
-    if (!raw) return { apiKey: '', preferredModel: 'gemini-3.5-flash-lite', hasCustomKey: false };
+    if (!raw) return { apiKey: '', preferredModel: 'llama-3.3-70b-versatile', hasCustomKey: false };
     const parsed = JSON.parse(raw);
     return {
       apiKey: parsed.apiKey || '',
-      preferredModel: parsed.preferredModel || 'gemini-3.5-flash-lite',
+      preferredModel: parsed.preferredModel || 'llama-3.3-70b-versatile',
       hasCustomKey: Boolean(parsed.apiKey && parsed.apiKey.trim().length > 0),
     };
   } catch (err) {
-    return { apiKey: '', preferredModel: 'gemini-3.5-flash-lite', hasCustomKey: false };
+    return { apiKey: '', preferredModel: 'llama-3.3-70b-versatile', hasCustomKey: false };
   }
 }
 

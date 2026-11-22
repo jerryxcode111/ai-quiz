@@ -16,14 +16,14 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
   onSaved,
 }) => {
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('gemini-3.5-flash-lite');
+  const [model, setModel] = useState('llama-3.3-70b-versatile');
   const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       const settings = getApiSettings();
       setApiKey(settings.apiKey || '');
-      setModel(settings.preferredModel || 'gemini-3.5-flash-lite');
+      setModel(settings.preferredModel || 'llama-3.3-70b-versatile');
     }
   }, [isOpen]);
 
@@ -44,6 +44,8 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
     onSaved();
   };
 
+  const isGroq = apiKey.startsWith('gsk_');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
       <div className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-lg max-w-md w-full p-5 shadow-xl">
@@ -51,7 +53,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
         <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
           <div className="flex items-center gap-2">
             <Key className="w-4 h-4 text-[#1E3A8A]" />
-            <h2 className="text-sm font-bold text-[#0F172A]">Backup Gemini API Key</h2>
+            <h2 className="text-sm font-bold text-[#0F172A]">Backup API Key</h2>
           </div>
           <button
             onClick={onClose}
@@ -64,7 +66,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
         {/* Form Body */}
         <div className="py-4 space-y-3.5">
           <p className="text-xs text-[#475569] leading-relaxed">
-            The default API key reached its rate limit or is unavailable. Enter an alternate Gemini API key to continue generating quizzes.
+            The default API key is experiencing high demand or rate limits. Enter a free <strong>Groq API Key</strong> (recommended, never limits) or Gemini key to continue.
           </p>
 
           {/* Key Input */}
@@ -72,12 +74,12 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
             <div className="flex justify-between items-center mb-1">
               <label className="text-xs font-semibold text-[#0F172A]">API Key</label>
               <a
-                href="https://aistudio.google.com/app/apikey"
+                href="https://console.groq.com/keys"
                 target="_blank"
                 rel="noreferrer"
-                className="text-[11px] text-[#1E3A8A] hover:underline flex items-center gap-1"
+                className="text-[11px] text-[#1E3A8A] hover:underline flex items-center gap-1 font-semibold"
               >
-                <span>Get Free Key</span>
+                <span>Get Free Groq Key</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
@@ -86,7 +88,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="AIzaSy... or AQ..."
+                placeholder="gsk_... (Groq) or AIzaSy... (Gemini)"
                 className="w-full text-xs font-mono px-3 py-2 pr-14 bg-[#FFFFFF] border border-[#CBD5E1] rounded-md text-[#0F172A] placeholder-[#94A3B8] focus:outline-hidden focus:border-[#1E3A8A]"
               />
               <button
@@ -107,9 +109,9 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
               onChange={(e) => setModel(e.target.value)}
               className="w-full text-xs font-mono px-3 py-2 bg-[#FFFFFF] border border-[#CBD5E1] rounded-md text-[#0F172A] focus:outline-hidden focus:border-[#1E3A8A]"
             >
-              <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Fastest, High Throughput)</option>
-              <option value="gemini-3.8-flash">gemini-3.8-flash (Latest)</option>
-              <option value="gemini-3.5-flash">gemini-3.5-flash (Balanced)</option>
+              <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Groq: Ultra-fast, 0 timeouts)</option>
+              <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Gemini)</option>
+              <option value="gemini-3.8-flash">gemini-3.8-flash (Gemini)</option>
             </select>
           </div>
         </div>
@@ -122,7 +124,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
               onClick={handleClear}
               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-[#991B1B] hover:bg-[#FEF2F2] border border-[#EF4444] rounded-md"
             >
-              <Trash2 className="w-3 h-3" />
+              <Trash2 className="w-3.5 h-3.5" />
               <span>Clear</span>
             </button>
           ) : (
